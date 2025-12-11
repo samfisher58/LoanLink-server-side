@@ -9,48 +9,51 @@ const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 app.use(express.json());
 app.use(cors());
 
-
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.fielwth.mongodb.net/?appName=Cluster0'`;
 
-
-    // Create a MongoClient with a MongoClientOptions object to set the Stable API version
+// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
-  serverApi: {
-    version: ServerApiVersion.v1,
-    strict: true,
-    deprecationErrors: true,
-  }
+	serverApi: {
+		version: ServerApiVersion.v1,
+		strict: true,
+		deprecationErrors: true,
+	},
 });
-
 
 async function run() {
 	try {
 		// Connect the client to the server	(optional starting in v4.7)
 		await client.connect();
 
-        const db = client.db('Loan_link_db');
-        const loanCollection = db.collection('loans');
+		const db = client.db('Loan_link_db');
+		const loanCollection = db.collection('loans');
+		const loanApplicationCollection = db.collection('loanApplication');
 
-        // loan collection API
-        app.get('/all-loans', async (req, res) => {
-					const cursor = loanCollection.find()
-					const result = await cursor.toArray();
-					res.send(result);
-				});
-        app.get('/six-loans', async (req, res) => {
-					const cursor = loanCollection.find().limit(6).sort({ createdAt: -1 });;
-					const result = await cursor.toArray();
-					res.send(result);
-				});
+		// loan collection API
+		app.get('/all-loans', async (req, res) => {
+			const cursor = loanCollection.find();
+			const result = await cursor.toArray();
+			res.send(result);
+		});
+		// 6 loan collection api
+		app.get('/six-loans', async (req, res) => {
+			const cursor = loanCollection.find().limit(6).sort({ createdAt: -1 });
+			const result = await cursor.toArray();
+			res.send(result);
+		});
+		// specific loan api
+		app.get('/all-loans/:id', async (req, res) => {
+			const id = req.params.id;
+			const query = { _id: new ObjectId(id) };
+			const result = await loanCollection.findOne(query);
+			res.send(result);
+		});
 
-        app.get('/all-loans/:id', async (req, res) => {
-                    const id = req.params.id
-                    const query = {_id: new ObjectId(id)}
-					const result = await loanCollection.findOne(query);
-					res.send(result);
-				});
-
-
+		app.post('/loan-application', async(req,res)=>{
+			const loanApplication = req.body;
+			const result = await loanApplicationCollection.insertOne(loanApplication);
+			res.send(result)
+		})
 
 		// Send a ping to confirm a successful connection
 		await client.db('admin').command({ ping: 1 });
@@ -64,9 +67,6 @@ async function run() {
 }
 run().catch(console.dir);
 
-
-
-
 app.get('/', (req, res) => {
 	res.send('Loan link is running');
 });
@@ -74,6 +74,3 @@ app.get('/', (req, res) => {
 app.listen(port, () => {
 	console.log(`Example app listening on port ${port}`);
 });
-
-
-
