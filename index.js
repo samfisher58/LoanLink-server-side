@@ -3,7 +3,26 @@ const cors = require('cors');
 const app = express();
 require('dotenv').config();
 const port = process.env.PORT || 3000;
+
+const crypto = require('crypto');
+
+
+
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+
+// loan id generator
+
+function generateLoanId() {
+	const prefix = 'LOAN'; // your brand prefix
+	const date = new Date().toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+	const random = crypto.randomBytes(3).toString('hex').toUpperCase(); // 6-char random hex
+
+	return `${prefix}-${date}-${random}`;
+}
+
+
+
+
 
 // middleware
 app.use(express.json());
@@ -49,11 +68,28 @@ async function run() {
 			res.send(result);
 		});
 
-		app.post('/loan-application', async(req,res)=>{
+		// loan application
+
+		app.get('/loan-application', async (req, res) => {
+			const query = {};
+			const email = req.query.email;
+			if (email) {
+				query.email = email;
+			}
+			const result = await loanApplicationCollection.find(query).sort({ createdAt: -1 }).toArray();
+
+			res.send(result);
+		});
+
+		app.post('/loan-application', async (req, res) => {
 			const loanApplication = req.body;
+			const loanId = generateLoanId();
+			loanApplication.createdAt = new Date();
+			loanApplication.loanId = loanId;
+
 			const result = await loanApplicationCollection.insertOne(loanApplication);
-			res.send(result)
-		})
+			res.send(result);
+		});
 
 		// Send a ping to confirm a successful connection
 		await client.db('admin').command({ ping: 1 });
