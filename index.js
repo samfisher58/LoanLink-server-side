@@ -4,9 +4,9 @@ const app = express();
 require('dotenv').config();
 const port = process.env.PORT || 3000;
 
+const stripe = require('stripe')(process.env.PAYMENT_SECRET);
+
 const crypto = require('crypto');
-
-
 
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
@@ -19,10 +19,6 @@ function generateLoanId() {
 
 	return `${prefix}-${date}-${random}`;
 }
-
-
-
-
 
 // middleware
 app.use(express.json());
@@ -77,7 +73,10 @@ async function run() {
 			if (email) {
 				query.email = email;
 			}
-			const result = await loanApplicationCollection.find(query).sort({ createdAt: -1 }).toArray();
+			const result = await loanApplicationCollection
+				.find(query)
+				.sort({ createdAt: -1 })
+				.toArray();
 
 			res.send(result);
 		});
@@ -87,21 +86,55 @@ async function run() {
 			const loanId = generateLoanId();
 			loanApplication.createdAt = new Date();
 			loanApplication.loanId = loanId;
+			loanApplication.paymentStatus = 'pending';
+			loanApplication.loanFee = 10
 
 			const result = await loanApplicationCollection.insertOne(loanApplication);
 			res.send(result);
 		});
 
+		app.delete('/loan-application/:id/delete', async (req, res) => {
+			const id = req.params.id;
+			const query = { _id: new ObjectId(id) };
+			const result = await loanApplicationCollection.deleteOne(query);
+			res.send(result);
+		});
+
+		// payment API's
+
+		app.post('/create-checkout-session', async (req, res) => {
+			const paymentInfo = req.body;
+			const amount = parseInt(paymentInfo.loanFee)*100;
+			const session = await stripe.checkout.sessions.create({
+				line_items: [
+					{
+						price_data: {
+							currency: 'usd',
+							unit_amount: amount,
+							product_data: {
+								name: `Payment for: ${paymentInfo.loanTitle}`,
+							},
+						},
+						quantity: 1,
+					},
+				],
+				mode: 'payment',
+				metadata: {
+					loanId: paymentInfo.loanFee,
+				},
+				customer_email: paymentInfo.email,
+				success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+				cancel_url: `${process.env.SITE_DOMAIN}/dashboard/payment-cancel?`,
+			});
+			res.send({ url: session.url });
+		});
+
 		// user collection api
-		app.post("/users", async(req,res)=>{
+		app.post('/users', async (req, res) => {
 			const newUser = req.body;
 			const result = await userCollection.insertOne(newUser);
-			res.send(result)
-		})
-
-
-
-
+			res.send(result);
+		});
 
 		// Send a ping to confirm a successful connection
 		await client.db('admin').command({ ping: 1 });
