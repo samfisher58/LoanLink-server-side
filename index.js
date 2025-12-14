@@ -120,7 +120,7 @@ async function run() {
 				],
 				mode: 'payment',
 				metadata: {
-					loanId: paymentInfo.loanFee,
+					loanId: paymentInfo.loanId,
 				},
 				customer_email: paymentInfo.email,
 				success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
@@ -128,6 +128,28 @@ async function run() {
 			});
 			res.send({ url: session.url });
 		});
+
+
+		app.patch('/verified-payment-success', async(req,res)=>{
+			const sessionId = req.query.session_id;
+			const session = await stripe.checkout.sessions.retrieve(sessionId);
+			console.log('session retrieve', session);
+			if(session.payment_status === 'paid'){
+				const id = session.metadata.loanId;
+				const query ={ _id: new ObjectId(id) }
+				const update = {
+					$set:{
+						paymentStatus: "paid",
+					}
+				};
+				const result = await loanApplicationCollection.updateOne(query,update);
+				res.send(result)
+
+			}
+
+			res.send({success: false})
+
+		})
 
 		// user collection api
 		app.post('/users', async (req, res) => {
