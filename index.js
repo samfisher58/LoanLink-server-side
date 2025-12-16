@@ -44,6 +44,7 @@ async function run() {
 		const loanCollection = db.collection('loans');
 		const loanApplicationCollection = db.collection('loanApplication');
 		const userCollection = db.collection('users');
+		const paymentCollection = db.collection('payments');
 
 		// loan collection API
 		app.get('/all-loans', async (req, res) => {
@@ -121,6 +122,7 @@ async function run() {
 				mode: 'payment',
 				metadata: {
 					loanId: paymentInfo.loanId,
+					loan_tracking_id: paymentInfo.loan_Id,
 				},
 				customer_email: paymentInfo.email,
 				success_url: `${process.env.SITE_DOMAIN}/dashboard/payment-success?session_id={CHECKOUT_SESSION_ID}`,
@@ -133,19 +135,48 @@ async function run() {
 		app.patch('/verified-payment-success', async(req,res)=>{
 			const sessionId = req.query.session_id;
 			const session = await stripe.checkout.sessions.retrieve(sessionId);
-			console.log('session retrieve', session);
+
+			const transactionId = session.payment_intent;
+			const query = { transactionId: transactionId }
+			const paymentExist = await paymentCollection.findOne(query);
+			if(paymentExist){
+				return res.send({message: 'already exist', transactionId})
+			}
+
 			if(session.payment_status === 'paid'){
 				const id = session.metadata.loanId;
 				const query ={ _id: new ObjectId(id) }
 				const update = {
 					$set:{
 						paymentStatus: "paid",
+						transactionId: session.payment_intent,
+						paidAt: new Date()
 					}
 				};
 				const result = await loanApplicationCollection.updateOne(query,update);
-				res.send(result)
+
+				const payment = {
+					amount: session.amount_total / 100,
+					transactionId: session.payment_intent,
+					paymentStatus: session.payment_status,
+					customerEmail: session.customer_email,
+					loanTrackingId: session.metadata.loan_tracking_id,
+					paidAt: new Date()
+				};
+				if(session.payment_status ==='paid'){
+					const paymentResult = await paymentCollection.insertOne(payment);
+					 return res.send({
+							success: true,
+							paymentInfo: paymentResult,
+							loanID: session.metadata.loan_tracking_id,
+							transactionId: session.payment_intent
+						});
+				}
+
+				 return res.send(result)
 
 			}
+
 
 			res.send({success: false})
 
@@ -155,6 +186,15 @@ async function run() {
 		app.post('/users', async (req, res) => {
 			const newUser = req.body;
 			const result = await userCollection.insertOne(newUser);
+			res.send(result);
+		});
+		app.get('/users', async (req, res) => {
+			const email = req.query.email;
+			const query ={}
+			if(email){
+				query.email = email;
+			}
+			const result = await userCollection.findOne(query);
 			res.send(result);
 		});
 
