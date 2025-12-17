@@ -2,13 +2,20 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 require('dotenv').config();
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 3000;
 
 const stripe = require('stripe')(process.env.PAYMENT_SECRET);
 
 const crypto = require('crypto');
 
-const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const admin = require('firebase-admin');
+
+const serviceAccount = require('./loan-link-firebase-adminsdk.json');
+
+admin.initializeApp({
+	credential: admin.credential.cert(serviceAccount),
+});
 
 // loan id generator
 
@@ -21,8 +28,29 @@ function generateLoanId() {
 }
 
 // middleware
-app.use(express.json());
 app.use(cors());
+app.use(express.json());
+
+
+
+const verifyFBToken = async(req,res,next)=>{	
+	const token = req.headers.authorization;
+	if(!token){
+		return res.status(401).send({message: "unauthorize access"})
+	}
+	try{
+		const idToken = token.split(' ')[1];
+		const decoded = await admin.auth().verifyIdToken(idToken);
+		console.log("decoded in the token",decoded);
+		req.decoded_email = decoded.email;
+		next();
+	}
+	catch(err){
+		return res.status(401).send({message: "unauthorize access"})
+	}
+	
+}
+
 
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.fielwth.mongodb.net/?appName=Cluster0'`;
 
@@ -59,7 +87,7 @@ async function run() {
 			res.send(result);
 		});
 		// specific loan api
-		app.get('/all-loans/:id', async (req, res) => {
+		app.get('/all-loans/:id',  async (req, res) => {
 			const id = req.params.id;
 			const query = { _id: new ObjectId(id) };
 			const result = await loanCollection.findOne(query);
@@ -68,12 +96,17 @@ async function run() {
 
 		// loan application
 
-		app.get('/loan-application', async (req, res) => {
+		app.get('/loan-application', verifyFBToken, async (req, res) => {
 			const query = {};
 			const email = req.query.email;
 			if (email) {
 				query.email = email;
+
+				if(email !== req.decoded_email){
+					return res.status(403).send({message: "forbidden access"})
+				}
 			}
+
 			const result = await loanApplicationCollection
 				.find(query)
 				.sort({ createdAt: -1 })
