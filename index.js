@@ -77,6 +77,15 @@ async function run() {
 			}
 			next();
 		}
+		const verifyAdminManager = async(req,res,next) =>{
+			const email = req.decoded_email;
+			const query = {email};
+			const user = await userCollection.findOne(query);
+			if (!user || (user.role !== 'Admin' && user.role !== 'Manager')) {
+				return res.status(403).send({ message: 'Forbidden Access' });
+			}
+			next();
+		}
 
 
 		// loan collection API
@@ -104,7 +113,7 @@ async function run() {
 			res.send(result);
 		});
 
-		app.delete('/all-loans/:id', async (req, res) => {
+		app.delete('/all-loans/:id',verifyFBToken,verifyAdmin, async (req, res) => {
 			const id = req.params.id;
 			const query = { _id: new ObjectId(id) };
 			const result = await loanCollection.deleteOne(query);
@@ -127,7 +136,7 @@ async function run() {
 			const result = await loanCollection.findOne(query);
 			res.send(result);
 		});
-		app.patch('/all-loans/:id', async (req, res) => {
+		app.patch('/all-loans/:id', verifyFBToken,verifyAdminManager, async (req, res) => {
 			const id = req.params.id;
 			const query = { _id: new ObjectId(id) };
 			const updatesLoans = req.body;
@@ -137,7 +146,7 @@ async function run() {
 			const result = await loanCollection.updateOne(query, update);
 			res.send(result);
 		});
-		app.patch('/all-loans/:id',async (req, res) => {
+		app.patch('/all-loans/:id',verifyFBToken,async (req, res) => {
 			const id = req.params.id;
 			const query = { _id: new ObjectId(id) };
 			const showOnHome = req.body;
@@ -167,7 +176,7 @@ async function run() {
 
 			res.send(result);
 		});
-		app.get('/loan-applications', async (req, res) => {
+		app.get('/loan-applications', verifyFBToken, async (req, res) => {
 			const loanStatus = req.query.loanStatus;
 			const query = {};
 			if (loanStatus === 'Pending') {
@@ -185,7 +194,7 @@ async function run() {
 			res.send(result);
 		});
 
-		app.post('/loan-application', async (req, res) => {
+		app.post('/loan-application',verifyFBToken, async (req, res) => {
 			const loanApplication = req.body;
 			const loanId = generateLoanId();
 			loanApplication.createdAt = new Date();
@@ -197,7 +206,7 @@ async function run() {
 			res.send(result);
 		});
 
-		app.patch('/loan-applications/:id',async(req,res)=>{
+		app.patch('/loan-applications/:id',verifyFBToken,async(req,res)=>{
 			const id = req.params.id;
 			const query = {_id: new ObjectId(id)};
 			const updatedStatus = req.body;
@@ -211,7 +220,7 @@ async function run() {
 			
 		})
 
-		app.delete('/loan-application/:id/delete', async (req, res) => {
+		app.delete('/loan-application/:id/delete',verifyFBToken, async (req, res) => {
 			const id = req.params.id;
 			const query = { _id: new ObjectId(id) };
 			const result = await loanApplicationCollection.deleteOne(query);
@@ -304,7 +313,7 @@ async function run() {
 			const result = await userCollection.insertOne(newUser);
 			res.send(result);
 		});
-		app.get('/users', async (req, res) => {
+		app.get('/users',verifyFBToken, async (req, res) => {
 			const email = req.query.email;
 			const query = {};
 			if (email) {
