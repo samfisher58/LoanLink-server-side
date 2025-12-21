@@ -68,34 +68,33 @@ async function run() {
 		const userCollection = db.collection('users');
 		const paymentCollection = db.collection('payments');
 
-		const verifyAdmin = async(req,res,next) =>{
+		const verifyAdmin = async (req, res, next) => {
 			const email = req.decoded_email;
-			const query = {email};
+			const query = { email };
 			const user = await userCollection.findOne(query);
-			if(!user || user.role !== "Admin"){
-				return res.status(403).send({message: "Forbidden Access"})
+			if (!user || user.role !== 'Admin') {
+				return res.status(403).send({ message: 'Forbidden Access' });
 			}
 			next();
-		}
-		const verifyManager = async(req,res,next) =>{
+		};
+		const verifyManager = async (req, res, next) => {
 			const email = req.decoded_email;
-			const query = {email};
+			const query = { email };
 			const user = await userCollection.findOne(query);
-			if(!user || user.role !== "Manager"){
-				return res.status(403).send({message: "Forbidden Access"})
+			if (!user || user.role !== 'Manager') {
+				return res.status(403).send({ message: 'Forbidden Access' });
 			}
 			next();
-		}
-		const verifyAdminManager = async(req,res,next) =>{
+		};
+		const verifyAdminManager = async (req, res, next) => {
 			const email = req.decoded_email;
-			const query = {email};
+			const query = { email };
 			const user = await userCollection.findOne(query);
 			if (!user || (user.role !== 'Admin' && user.role !== 'Manager')) {
 				return res.status(403).send({ message: 'Forbidden Access' });
 			}
 			next();
-		}
-
+		};
 
 		// loan collection API
 		app.get('/all-loans', async (req, res) => {
@@ -103,24 +102,29 @@ async function run() {
 			const result = await cursor.toArray();
 			res.send(result);
 		});
-		app.get('/all-loans-admin',verifyFBToken,verifyAdminManager, async (req, res) => {
-			const email = req.query.email;
-			const searchText = req.query.searchText;
-			const query = {};
-			if (email) {
-				query.createdBy = email;
+		app.get(
+			'/all-loans-admin',
+			verifyFBToken,
+			verifyAdminManager,
+			async (req, res) => {
+				const email = req.query.email;
+				const searchText = req.query.searchText;
+				const query = {};
+				if (email) {
+					query.createdBy = email;
+				}
+				if (searchText && searchText.trim() !== '') {
+					query.$or = [
+						{ category: { $regex: searchText, $options: 'i' } },
+						{ title: { $regex: searchText, $options: 'i' } },
+					];
+				}
+				const cursor = loanCollection.find(query).sort({ createdAt: -1 });
+				const result = await cursor.toArray();
+				res.send(result);
 			}
-			if (searchText) {
-				query.$or = [
-					{ category: { $regex: searchText, $options: 'i' } },
-					{ title: { $regex: searchText, $options: 'i' } },
-				];
-			}
-			const cursor = loanCollection.find(query).sort({ createdAt: -1 });
-			const result = await cursor.toArray();
-			res.send(result);
-		});
-		app.post('/all-loans',verifyFBToken,verifyManager, async (req, res) => {
+		);
+		app.post('/all-loans', verifyFBToken, verifyManager, async (req, res) => {
 			const newLoan = req.body;
 			const email = req.query.email;
 			newLoan.createdAt = new Date();
@@ -129,12 +133,17 @@ async function run() {
 			res.send(result);
 		});
 
-		app.delete('/all-loans/:id',verifyFBToken,verifyAdminManager, async (req, res) => {
-			const id = req.params.id;
-			const query = { _id: new ObjectId(id) };
-			const result = await loanCollection.deleteOne(query);
-			res.send(result);
-		});
+		app.delete(
+			'/all-loans/:id',
+			verifyFBToken,
+			verifyAdminManager,
+			async (req, res) => {
+				const id = req.params.id;
+				const query = { _id: new ObjectId(id) };
+				const result = await loanCollection.deleteOne(query);
+				res.send(result);
+			}
+		);
 
 		// 6 loan collection api
 		app.get('/six-loans', async (req, res) => {
@@ -152,17 +161,22 @@ async function run() {
 			const result = await loanCollection.findOne(query);
 			res.send(result);
 		});
-		app.patch('/all-loans/:id', verifyFBToken,verifyAdminManager, async (req, res) => {
-			const id = req.params.id;
-			const query = { _id: new ObjectId(id) };
-			const updatesLoans = req.body;
-			const update = {
-				$set: updatesLoans,
-			};
-			const result = await loanCollection.updateOne(query, update);
-			res.send(result);
-		});
-		app.patch('/all-loans/:id',verifyFBToken,async (req, res) => {
+		app.patch(
+			'/all-loans/:id',
+			verifyFBToken,
+			verifyAdminManager,
+			async (req, res) => {
+				const id = req.params.id;
+				const query = { _id: new ObjectId(id) };
+				const updatesLoans = req.body;
+				const update = {
+					$set: updatesLoans,
+				};
+				const result = await loanCollection.updateOne(query, update);
+				res.send(result);
+			}
+		);
+		app.patch('/all-loans/:id', verifyFBToken, async (req, res) => {
 			const id = req.params.id;
 			const query = { _id: new ObjectId(id) };
 			const showOnHome = req.body;
@@ -174,7 +188,7 @@ async function run() {
 		});
 
 		// loan application
-		app.get('/loan-application',verifyFBToken, async (req, res) => {
+		app.get('/loan-application', verifyFBToken, async (req, res) => {
 			const query = {};
 			const email = req.query.email;
 			if (email) {
@@ -201,6 +215,9 @@ async function run() {
 			if (loanStatus === 'Approved') {
 				query.loanStatus = loanStatus;
 			}
+			if (loanStatus === 'Rejected') {
+				query.loanStatus = loanStatus;
+			}
 
 			const result = await loanApplicationCollection
 				.find(query)
@@ -210,7 +227,7 @@ async function run() {
 			res.send(result);
 		});
 
-		app.post('/loan-application',verifyFBToken, async (req, res) => {
+		app.post('/loan-application', verifyFBToken, async (req, res) => {
 			const loanApplication = req.body;
 			const loanId = generateLoanId();
 			loanApplication.createdAt = new Date();
@@ -222,26 +239,30 @@ async function run() {
 			res.send(result);
 		});
 
-		app.patch('/loan-applications/:id',verifyFBToken,async(req,res)=>{
-			const id = req.params.id;
-			const query = {_id: new ObjectId(id)};
-			const updatedStatus = req.body;
-			const update ={
-				$set:{
-					loanStatus:updatedStatus.loanStatus
-				}
-			}
-			const result = await loanApplicationCollection.updateOne(query,update);
-			res.send(result);
-			
-		})
-
-		app.delete('/loan-application/:id/delete',verifyFBToken, async (req, res) => {
+		app.patch('/loan-applications/:id', verifyFBToken, async (req, res) => {
 			const id = req.params.id;
 			const query = { _id: new ObjectId(id) };
-			const result = await loanApplicationCollection.deleteOne(query);
+			const updatedStatus = req.body;
+			const update = {
+				$set: {
+					loanStatus: updatedStatus.loanStatus,
+				},
+			};
+			const result = await loanApplicationCollection.updateOne(query, update);
 			res.send(result);
 		});
+
+		app.delete(
+			'/loan-application/:id/delete',
+			verifyFBToken,
+			verifyManager,
+			async (req, res) => {
+				const id = req.params.id;
+				const query = { _id: new ObjectId(id) };
+				const result = await loanApplicationCollection.deleteOne(query);
+				res.send(result);
+			}
+		);
 
 		// payment API's
 
@@ -329,12 +350,25 @@ async function run() {
 			const result = await userCollection.insertOne(newUser);
 			res.send(result);
 		});
-		app.get('/users',verifyFBToken, async (req, res) => {
+		app.get('/users', verifyFBToken, async (req, res) => {
 			const email = req.query.email;
+			const role = req.query.role;
+			const searchText = req.query.searchText;
 			const query = {};
 			if (email) {
 				query.email = email;
 			}
+			if (role) {
+				query.role = role;
+			}
+			if (searchText && searchText.trim() !== '') {
+				query.$or = [
+					{ displayName: { $regex: searchText, $options: 'i' } },
+					{ email: { $regex: searchText, $options: 'i' } },
+					{ role: { $regex: searchText, $options: 'i' } },
+				];
+			}
+
 			const result = await userCollection.find(query).toArray();
 			res.send(result);
 		});
@@ -366,9 +400,9 @@ async function run() {
 
 		// Send a ping to confirm a successful connection
 		// await client.db('admin').command({ ping: 1 });
-		console.log(
-			'Pinged your deployment. You successfully connected to MongoDB!'
-		);
+		// console.log(
+		// 	'Pinged your deployment. You successfully connected to MongoDB!'
+		// );
 	} finally {
 		// Ensures that the client will close when you finish/error
 		// await client.close();
