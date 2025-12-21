@@ -11,7 +11,11 @@ const crypto = require('crypto');
 
 const admin = require('firebase-admin');
 
-const serviceAccount = require('./loan-link-firebase-adminsdk.json');
+
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString(
+	'utf8'
+);
+const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
 	credential: admin.credential.cert(serviceAccount),
@@ -255,7 +259,6 @@ async function run() {
 		app.delete(
 			'/loan-application/:id/delete',
 			verifyFBToken,
-			verifyManager,
 			async (req, res) => {
 				const id = req.params.id;
 				const query = { _id: new ObjectId(id) };
