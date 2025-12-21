@@ -77,6 +77,15 @@ async function run() {
 			}
 			next();
 		}
+		const verifyManager = async(req,res,next) =>{
+			const email = req.decoded_email;
+			const query = {email};
+			const user = await userCollection.findOne(query);
+			if(!user || user.role !== "Manager"){
+				return res.status(403).send({message: "Forbidden Access"})
+			}
+			next();
+		}
 		const verifyAdminManager = async(req,res,next) =>{
 			const email = req.decoded_email;
 			const query = {email};
@@ -94,17 +103,24 @@ async function run() {
 			const result = await cursor.toArray();
 			res.send(result);
 		});
-		app.get('/all-loans-admin', async (req, res) => {
+		app.get('/all-loans-admin',verifyFBToken,verifyAdminManager, async (req, res) => {
 			const email = req.query.email;
+			const searchText = req.query.searchText;
 			const query = {};
 			if (email) {
 				query.createdBy = email;
+			}
+			if (searchText) {
+				query.$or = [
+					{ category: { $regex: searchText, $options: 'i' } },
+					{ title: { $regex: searchText, $options: 'i' } },
+				];
 			}
 			const cursor = loanCollection.find(query).sort({ createdAt: -1 });
 			const result = await cursor.toArray();
 			res.send(result);
 		});
-		app.post('/all-loans', async (req, res) => {
+		app.post('/all-loans',verifyFBToken,verifyManager, async (req, res) => {
 			const newLoan = req.body;
 			const email = req.query.email;
 			newLoan.createdAt = new Date();
@@ -113,7 +129,7 @@ async function run() {
 			res.send(result);
 		});
 
-		app.delete('/all-loans/:id',verifyFBToken,verifyAdmin, async (req, res) => {
+		app.delete('/all-loans/:id',verifyFBToken,verifyAdminManager, async (req, res) => {
 			const id = req.params.id;
 			const query = { _id: new ObjectId(id) };
 			const result = await loanCollection.deleteOne(query);
